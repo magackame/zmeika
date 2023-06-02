@@ -10,10 +10,10 @@ import qualified Direction
 type Snake = [Vec2]
 
 move :: Direction -> Snake -> Snake
-move direction (head:tail) =
-  movedHead : moveTail head tail
+move direction snake =
+  movedHead : init snake
   where
-    movedHead = moveHead head direction
+    movedHead = moveHead (head snake) direction
 
 
 elongate :: Snake -> Snake
@@ -34,8 +34,3 @@ moveHead head direction =
 
     R ->
       head `Vec2.add` Vec2 1 0
-
-
-moveTail :: Vec2 -> [Vec2] -> [Vec2]
-moveTail prev [] = [] 
-moveTail prev (head:tail) = prev : moveTail head tail
