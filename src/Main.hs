@@ -29,20 +29,24 @@ main = do
   hSetBuffering stdin NoBuffering
   hSetEcho stdin False
 
+  actualDirection <- newMVar D
   direction <- newMVar D
 
-  forkIO $ inputThread direction
+  forkIO $ inputThread actualDirection direction
 
-  startGame direction
+  startGame actualDirection direction
 
 
-game :: State -> Vec2 -> Snake -> MVar Direction -> IO ()
-game state foodPosition snake direction = do
+game :: State -> Vec2 -> Snake -> MVar Direction -> MVar Direction -> IO ()
+game state foodPosition snake actualDirection direction = do
   let snakeLength = length snake
 
   case state of
     Playing -> do
       dir <- readMVar direction
+
+      _ <- takeMVar actualDirection
+      putMVar actualDirection dir
 
       putStrLn $ "Snake length: " ++ show snakeLength
 
@@ -56,13 +60,13 @@ game state foodPosition snake direction = do
       threadDelay 200000
 
       clear
-      game state foodPosition (Snake.move dir snake) direction
+      game state foodPosition (Snake.move dir snake) actualDirection direction
 
     Over -> do
       putStrLn $ "Game Over\nYour length was " ++ show snakeLength ++ "\nPress any key to continue..." 
       _ <- getChar
 
-      startGame direction
+      startGame actualDirection direction
 
 
 checkCollision :: Snake -> State
@@ -105,33 +109,37 @@ generateFoodPosition snake = do
     return foodPosition
 
 
-startGame :: MVar Direction -> IO ()
-startGame direction = do
+startGame :: MVar Direction -> MVar Direction -> IO ()
+startGame actualDirection direction = do
   foodPosition <- generateFoodPosition snake
+
+  _ <- takeMVar actualDirection
+  putMVar actualDirection D
 
   _ <- takeMVar direction
   putMVar direction D
 
-  game Playing foodPosition snake direction
+  game Playing foodPosition snake actualDirection direction
   where
     snake = [Vec2 1 3, Vec2 1 2, Vec2 1 1, Vec2 2 1, Vec2 3 1, Vec2 4 1, Vec2 5 1, Vec2 6 1]
 
 
-inputThread :: MVar Direction -> IO ()
-inputThread direction = do
+inputThread :: MVar Direction -> MVar Direction -> IO ()
+inputThread actualDirection direction = do
   key <- getKey
 
   let dir = Direction.fromKey key
-  updateDirection direction dir
+  updateDirection actualDirection direction dir
 
-  inputThread direction
+  inputThread actualDirection direction
 
 
-updateDirection :: MVar Direction -> Maybe Direction -> IO ()
-updateDirection direction dir =
+updateDirection :: MVar Direction -> MVar Direction -> Maybe Direction -> IO ()
+updateDirection actualDirection direction dir =
   case dir of
     Just dir -> do
-      prevDir <- takeMVar direction
+      _ <- takeMVar direction
+      prevDir <- readMVar actualDirection
 
       if prevDir == Direction.opposite dir
       then
